@@ -1,174 +1,128 @@
-fetch("ventas_raw.csv")
-  .then(res => res.text())
-  .then(texto => procesarCSV(texto));
+document.addEventListener("DOMContentLoaded", () => {
+  fetch("ventas_raw.csv")
+    .then(res => res.text())
+    .then(texto => procesarCSV(texto))
+    .catch(() => alert("❌ No se pudo cargar ventas_raw.csv"));
+});
 
 let datosClean = [];
 
 function procesarCSV(texto) {
-  const lineas = texto.trim().split("\n");
+  const lineas = texto.trim().split(/\r?\n/);
   const cabecera = lineas[0].split(",");
 
   const datosRaw = lineas.slice(1).map(l => {
-    const valores = l.split(",");
-    let obj = {};
-    cabecera.forEach((c, i) => obj[c.trim()] = valores[i]?.trim());
-    return obj;
+    const v = l.split(",");
+    let o = {};
+    cabecera.forEach((c,i)=>o[c.trim()] = v[i]?.trim());
+    return o;
   });
 
-  mostrarTabla(datosRaw.slice(0, 10), "tablaRaw");
+  mostrarTabla(datosRaw.slice(0,10),"tablaRaw");
 
-  const antes = datosRaw.length;
-  datosClean = limpiarDatos(datosRaw);
-  const despues = datosClean.length;
+  datosClean = limpiar(datosRaw);
 
   document.getElementById("infoFilas").innerText =
-    `Filas antes de limpiar: ${antes} | Filas después de limpiar: ${despues}`;
+    `Filas antes: ${datosRaw.length} | Filas después: ${datosClean.length}`;
 
-  mostrarTabla(datosClean.slice(0, 10), "tablaClean");
+  mostrarTabla(datosClean.slice(0,10),"tablaClean");
   calcularKPIs(datosClean);
-  crearGraficos(datosClean);
+  graficos(datosClean);
 }
 
-function limpiarDatos(datos) {
-  const vistos = new Set();
-  let limpio = [];
+function limpiar(datos){
+  const set = new Set();
+  const out = [];
 
-  datos.forEach(d => {
+  datos.forEach(d=>{
     const fecha = new Date(d.fecha);
-    if (isNaN(fecha)) return;
+    if(isNaN(fecha)) return;
 
-    let franja = d.franja.toLowerCase();
-    if (franja.includes("desa")) franja = "Desayuno";
-    else if (franja.includes("com")) franja = "Comida";
-    else return;
+    const franja = d.franja?.toLowerCase().includes("desa") ? "Desayuno" :
+                   d.franja?.toLowerCase().includes("com") ? "Comida" : null;
+    if(!franja) return;
 
-    let familia = d.familia.toLowerCase();
-    if (familia.includes("beb")) familia = "Bebida";
-    else if (familia.includes("entra")) familia = "Entrante";
-    else if (familia.includes("princ")) familia = "Principal";
-    else if (familia.includes("post")) familia = "Postre";
-    else return;
+    const familia =
+      d.familia?.toLowerCase().includes("beb") ? "Bebida" :
+      d.familia?.toLowerCase().includes("entra") ? "Entrante" :
+      d.familia?.toLowerCase().includes("princ") ? "Principal" :
+      d.familia?.toLowerCase().includes("post") ? "Postre" : null;
+    if(!familia) return;
 
-    if (!d.producto) return;
+    if(!d.producto) return;
     const producto = d.producto.trim().toLowerCase();
 
     const unidades = Number(d.unidades);
     const precio = Number(d.precio_unitario);
-    if (unidades <= 0 || precio <= 0) return;
-
-    const importe = unidades * precio;
+    if(unidades<=0 || precio<=0) return;
 
     const fila = {
       fecha: fecha.toISOString().split("T")[0],
-      franja,
-      producto,
-      familia,
+      franja, producto, familia,
       unidades,
       precio_unitario: precio,
-      importe
+      importe: unidades * precio
     };
 
-    const clave = JSON.stringify(fila);
-    if (!vistos.has(clave)) {
-      vistos.add(clave);
-      limpio.push(fila);
-    }
+    const key = JSON.stringify(fila);
+    if(!set.has(key)){ set.add(key); out.push(fila); }
   });
 
-  return limpio;
+  return out;
 }
 
-function calcularKPIs(datos) {
-  const totalVentas = datos.reduce((s, d) => s + d.importe, 0);
-  const totalUnidades = datos.reduce((s, d) => s + d.unidades, 0);
+function calcularKPIs(d){
+  const totalVentas = d.reduce((s,x)=>s+x.importe,0);
+  const totalUnidades = d.reduce((s,x)=>s+x.unidades,0);
 
-  const porProducto = agrupar(datos, "producto");
-  const porFranja = agrupar(datos, "franja");
-  const porFamilia = agrupar(datos, "familia");
+  const agr = (c)=>d.reduce((a,x)=>(a[x[c]]=(a[x[c]]||0)+x.importe,a),{});
 
-  document.getElementById("kpiVentas").innerHTML =
-    `<strong>Ventas totales</strong><br>€ ${totalVentas.toFixed(2)}`;
+  const pProd = agr("producto");
+  const pFran = agr("franja");
+  const pFam  = agr("familia");
 
-  document.getElementById("kpiUnidades").innerHTML =
-    `<strong>Unidades totales</strong><br>${totalUnidades}`;
-
-  document.getElementById("kpiTop").innerHTML =
-    `<strong>Top 5 productos</strong><br>` +
-    Object.entries(porProducto)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(e => `${e[0]} (€${e[1].toFixed(2)})`)
-      .join("<br>");
-
-  document.getElementById("kpiFranja").innerHTML =
-    `<strong>Ventas por franja</strong><br>` +
-    Object.entries(porFranja).map(e => `${e[0]} (€${e[1].toFixed(2)})`).join("<br>");
-
-  document.getElementById("kpiFamilia").innerHTML =
-    `<strong>Ventas por familia</strong><br>` +
-    Object.entries(porFamilia).map(e => `${e[0]} (€${e[1].toFixed(2)})`).join("<br>");
+  kpiVentas.innerHTML = `<b>Ventas totales</b><br>€ ${totalVentas.toFixed(2)}`;
+  kpiUnidades.innerHTML = `<b>Unidades</b><br>${totalUnidades}`;
+  kpiTop.innerHTML = `<b>Top productos</b><br>` +
+    Object.entries(pProd).sort((a,b)=>b[1]-a[1]).slice(0,5)
+    .map(e=>`${e[0]} (€${e[1].toFixed(2)})`).join("<br>");
+  kpiFranja.innerHTML = `<b>Ventas por franja</b><br>` +
+    Object.entries(pFran).map(e=>`${e[0]} €${e[1].toFixed(2)}`).join("<br>");
+  kpiFamilia.innerHTML = `<b>Ventas por familia</b><br>` +
+    Object.entries(pFam).map(e=>`${e[0]} €${e[1].toFixed(2)}`).join("<br>");
 }
 
-function crearGraficos(datos) {
-  const porProducto = agrupar(datos, "producto");
-  const porFranja = agrupar(datos, "franja");
-  const porFamilia = agrupar(datos, "familia");
+function graficos(d){
+  const agr = (c)=>d.reduce((a,x)=>(a[x[c]]=(a[x[c]]||0)+x.importe,a),{});
 
-  const top5 = Object.entries(porProducto)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  const prod = Object.entries(agr("producto")).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
-  new Chart(document.getElementById("chartTop"), {
-    type: "bar",
-    data: { labels: top5.map(e => e[0]), datasets: [{ data: top5.map(e => e[1]) }] }
-  });
+  new Chart(chartTop,{type:"bar",
+    data:{labels:prod.map(x=>x[0]),datasets:[{data:prod.map(x=>x[1])}]}});
+  new Chart(chartFranja,{type:"pie",
+    data:{labels:Object.keys(agr("franja")),datasets:[{data:Object.values(agr("franja"))}]}});
+  new Chart(chartFamilia,{type:"pie",
+    data:{labels:Object.keys(agr("familia")),datasets:[{data:Object.values(agr("familia"))}]}});
+}
 
-  new Chart(document.getElementById("chartFranja"), {
-    type: "pie",
-    data: { labels: Object.keys(porFranja), datasets: [{ data: Object.values(porFranja) }] }
-  });
-
-  new Chart(document.getElementById("chartFamilia"), {
-    type: "pie",
-    data: { labels: Object.keys(porFamilia), datasets: [{ data: Object.values(porFamilia) }] }
+function mostrarTabla(d,id){
+  const t=document.getElementById(id); if(!d.length) return;
+  t.innerHTML="";
+  const h=t.createTHead().insertRow();
+  Object.keys(d[0]).forEach(k=>h.appendChild(document.createElement("th")).innerText=k);
+  const b=t.createTBody();
+  d.forEach(r=>{
+    const row=b.insertRow();
+    Object.values(r).forEach(v=>row.insertCell().innerText=v);
   });
 }
 
-function agrupar(datos, campo) {
-  return datos.reduce((acc, d) => {
-    acc[d[campo]] = (acc[d[campo]] || 0) + d.importe;
-    return acc;
-  }, {});
-}
-
-function mostrarTabla(datos, id) {
-  const tabla = document.getElementById(id);
-  if (datos.length === 0) return;
-
-  tabla.innerHTML = "";
-  const thead = tabla.createTHead();
-  const filaHead = thead.insertRow();
-  Object.keys(datos[0]).forEach(k => {
-    const th = document.createElement("th");
-    th.innerText = k;
-    filaHead.appendChild(th);
-  });
-
-  const tbody = tabla.createTBody();
-  datos.forEach(d => {
-    const fila = tbody.insertRow();
-    Object.values(d).forEach(v => fila.insertCell().innerText = v);
-  });
-}
-
-function descargarCSV() {
-  const cab = Object.keys(datosClean[0]).join(",");
-  const filas = datosClean.map(d => Object.values(d).join(","));
-  const csv = [cab, ...filas].join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "ventas_clean.csv";
+function descargarCSV(){
+  const cab=Object.keys(datosClean[0]).join(",");
+  const filas=datosClean.map(d=>Object.values(d).join(","));
+  const csv=[cab,...filas].join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="ventas_clean.csv";
   a.click();
 }
