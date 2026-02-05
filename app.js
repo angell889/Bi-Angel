@@ -1,44 +1,53 @@
-fetch("ventas_raw.csv")
-  .then(res => res.text())
-  .then(text => iniciar(text));
+document.addEventListener("DOMContentLoaded", () => {
+  fetch("./ventas_raw.csv")
+    .then(res => {
+      if (!res.ok) throw new Error("No se pudo cargar el CSV");
+      return res.text();
+    })
+    .then(csv => iniciar(csv))
+    .catch(err => {
+      document.body.innerHTML =
+        "<h2 style='padding:20px;color:red'>Error cargando datos</h2><p>" +
+        err.message +
+        "</p>";
+    });
+});
 
 function iniciar(csv) {
-  const filas = csv.trim().split("\n");
-  const cabecera = filas.shift().split(",");
+  const lineas = csv.trim().split("\n");
+  if (lineas.length < 2) return;
 
-  const raw = filas.map(f => {
-    const v = f.split(",");
+  const cabecera = lineas[0].split(",").map(c => c.trim());
+
+  const raw = lineas.slice(1).map(l => {
+    const valores = l.split(",");
     let obj = {};
-    cabecera.forEach((c, i) => obj[c.trim()] = v[i]?.trim());
+    cabecera.forEach((c, i) => obj[c] = valores[i]?.trim() || "");
     return obj;
   });
 
-  const clean = limpiarDatos(raw);
+  const clean = limpiar(raw);
 
-  mostrarTablas(raw, clean);
+  pintarTabla("tablaRaw", raw.slice(0, 10));
+  pintarTabla("tablaClean", clean.slice(0, 10));
+
   calcularKPIs(clean);
-  graficos(clean);
-  ranking(clean);
+  crearGraficos(clean);
+  rankingProductos(clean);
 }
 
-// ---------------- LIMPIEZA ----------------
-function limpiarDatos(data) {
-  let vistos = new Set();
+/* ---------------- LIMPIEZA ---------------- */
+
+function limpiar(data) {
+  const set = new Set();
 
   return data.filter(d => {
     const fecha = new Date(d.fecha);
     if (isNaN(fecha)) return false;
+    d.fechaObj = fecha;
 
-    d.franja = d.franja.toLowerCase().includes("desa") ? "Desayuno" : "Comida";
-
-    const fam = d.familia.toLowerCase();
-    if (fam.includes("beb")) d.familia = "Bebida";
-    else if (fam.includes("entra")) d.familia = "Entrante";
-    else if (fam.includes("post")) d.familia = "Postre";
-    else d.familia = "Principal";
-
-    if (!d.producto) return false;
     d.producto = d.producto.toLowerCase().trim();
+    if (!d.producto) return false;
 
     d.unidades = Number(d.unidades);
     d.precio_unitario = Number(d.precio_unitario);
@@ -46,18 +55,29 @@ function limpiarDatos(data) {
 
     d.importe = d.unidades * d.precio_unitario;
 
-    const key = JSON.stringify(d);
-    if (vistos.has(key)) return false;
-    vistos.add(key);
+    d.franja = d.franja.toLowerCase().includes("desa")
+      ? "Desayuno"
+      : "Comida";
 
-    d.fechaObj = fecha;
+    const fam = d.familia.toLowerCase();
+    if (fam.includes("beb")) d.familia = "Bebida";
+    else if (fam.includes("entra")) d.familia = "Entrante";
+    else if (fam.includes("post")) d.familia = "Postre";
+    else d.familia = "Principal";
+
+    const key = JSON.stringify(d);
+    if (set.has(key)) return false;
+    set.add(key);
+
     return true;
   });
 }
 
-// ---------------- KPIs ----------------
+/* ---------------- KPIs ---------------- */
+
 function calcularKPIs(data) {
-  let ventas = 0, unidades = 0;
+  let ventas = 0;
+  let unidades = 0;
   let ventasPorDia = {};
 
   data.forEach(d => {
@@ -69,42 +89,52 @@ function calcularKPIs(data) {
   });
 
   const mejorDia = Object.entries(ventasPorDia)
-    .sort((a,b) => b[1]-a[1])[0]?.[0] || "-";
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
 
   document.getElementById("kpiVentas").textContent = ventas.toFixed(2);
   document.getElementById("kpiUnidades").textContent = unidades;
-  document.getElementById("kpiTicket").textContent = (ventas / data.length).toFixed(2);
+  document.getElementById("kpiTicket").textContent =
+    (ventas / data.length).toFixed(2);
   document.getElementById("kpiDia").textContent = mejorDia;
 }
 
-// ---------------- GRÁFICOS ----------------
-function graficos(data) {
+/* ---------------- GRÁFICOS ---------------- */
+
+function crearGraficos(data) {
   const porProducto = agrupar(data, "producto");
   const top = Object.entries(porProducto).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
-  new Chart(chartTop, {
+  new Chart(document.getElementById("chartTop"), {
     type: "bar",
     data: {
-      labels: top.map(t=>t[0]),
-      datasets: [{ data: top.map(t=>t[1]), backgroundColor: "#1f6f54" }]
+      labels: top.map(t => t[0]),
+      datasets: [{
+        data: top.map(t => t[1]),
+        backgroundColor: "#1f6f54"
+      }]
     }
   });
 
   const porFranja = agrupar(data, "franja");
-  new Chart(chartFranja, {
+  new Chart(document.getElementById("chartFranja"), {
     type: "pie",
     data: {
       labels: Object.keys(porFranja),
-      datasets: [{ data: Object.values(porFranja) }]
+      datasets: [{
+        data: Object.values(porFranja)
+      }]
     }
   });
 
   const porFamilia = agrupar(data, "familia");
-  new Chart(chartFamilia, {
+  new Chart(document.getElementById("chartFamilia"), {
     type: "bar",
     data: {
       labels: Object.keys(porFamilia),
-      datasets: [{ data: Object.values(porFamilia), backgroundColor: "#f4a261" }]
+      datasets: [{
+        data: Object.values(porFamilia),
+        backgroundColor: "#e76f51"
+      }]
     }
   });
 }
@@ -115,12 +145,15 @@ function agrupar(data, campo) {
   return obj;
 }
 
-// ---------------- RANKING ----------------
-function ranking(data) {
+/* ---------------- RANKING ---------------- */
+
+function rankingProductos(data) {
   const porProducto = agrupar(data, "producto");
   const lista = Object.entries(porProducto).sort((a,b)=>b[1]-a[1]);
 
   const ul = document.getElementById("rankingProductos");
+  ul.innerHTML = "";
+
   lista.forEach(p => {
     const li = document.createElement("li");
     li.textContent = `${p[0]} → ${p[1].toFixed(2)} €`;
@@ -128,11 +161,7 @@ function ranking(data) {
   });
 }
 
-// ---------------- TABLAS ----------------
-function mostrarTablas(raw, clean) {
-  pintarTabla("tablaRaw", raw.slice(0,10));
-  pintarTabla("tablaClean", clean.slice(0,10));
-}
+/* ---------------- TABLAS ---------------- */
 
 function pintarTabla(id, data) {
   const table = document.getElementById(id);
@@ -140,15 +169,15 @@ function pintarTabla(id, data) {
 
   if (!data.length) return;
 
-  const thead = document.createElement("tr");
+  const trHead = document.createElement("tr");
   Object.keys(data[0]).forEach(k => {
     if (k !== "fechaObj") {
       const th = document.createElement("th");
       th.textContent = k;
-      thead.appendChild(th);
+      trHead.appendChild(th);
     }
   });
-  table.appendChild(thead);
+  table.appendChild(trHead);
 
   data.forEach(d => {
     const tr = document.createElement("tr");
