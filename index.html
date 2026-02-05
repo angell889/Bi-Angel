@@ -1,42 +1,44 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Restaurante El Mirador · BI Ventas</title>
+  <meta charset="UTF-8" />
+  <title>Dashboard BI – Restaurante El Mirador</title>
 
-  <!-- Chart.js CDN -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body {
-      margin: 0;
       font-family: Arial, sans-serif;
-      background: #f4f6f9;
-      color: #333;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 0;
     }
 
     header {
-      background: #2c3e50;
+      background: #1f6f54;
       color: white;
       padding: 20px;
-      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+    }
+
+    header p {
+      margin: 5px 0 0;
+      font-size: 14px;
     }
 
     main {
-      max-width: 1200px;
-      margin: auto;
       padding: 20px;
-    }
-
-    h2 {
-      color: #2c3e50;
-      margin-top: 40px;
     }
 
     .kpis {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
+      gap: 15px;
+      margin-bottom: 30px;
     }
 
     .kpi {
@@ -44,98 +46,152 @@
       padding: 15px;
       border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      font-size: 14px;
+      text-align: center;
     }
 
-    .chart-box {
+    .kpi h3 {
+      margin: 0;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .kpi p {
+      font-size: 22px;
+      margin: 10px 0 0;
+      font-weight: bold;
+      color: #1f6f54;
+    }
+
+    section {
       background: white;
-      padding: 15px;
+      padding: 20px;
       border-radius: 8px;
+      margin-bottom: 30px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      margin-top: 20px;
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #1f6f54;
     }
 
     canvas {
-      width: 100% !important;
-      height: 350px !important;
+      max-width: 100%;
+      margin-top: 20px;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      background: white;
-      margin-top: 10px;
       font-size: 13px;
     }
 
     th, td {
-      padding: 8px;
-      border-bottom: 1px solid #ddd;
-      text-align: left;
+      border: 1px solid #ddd;
+      padding: 6px;
+      text-align: center;
     }
 
     th {
-      background: #ecf0f1;
+      background: #1f6f54;
+      color: white;
     }
 
-    button {
-      margin-top: 20px;
-      padding: 10px 16px;
-      background: #2c3e50;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
+    .scroll {
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    ul {
+      padding-left: 20px;
     }
 
     footer {
       text-align: center;
-      margin-top: 40px;
+      padding: 15px;
       font-size: 12px;
       color: #666;
     }
   </style>
 </head>
+
 <body>
 
 <header>
   <h1>🍽️ Restaurante El Mirador</h1>
-  <p>Cuadro de mando de Business Intelligence</p>
+  <p>
+    Puerto de la Cruz · Tenerife Norte<br>
+    Cocina fusión Canaria & Latinoamericana<br>
+    Horario: Desayunos 08:00–12:00 · Comidas 13:00–17:00
+  </p>
 </header>
 
 <main>
-  <p id="infoFilas"></p>
 
-  <h2>KPIs</h2>
+  <!-- KPIs -->
   <div class="kpis">
-    <div class="kpi" id="kpiVentas"></div>
-    <div class="kpi" id="kpiUnidades"></div>
-    <div class="kpi" id="kpiTop"></div>
-    <div class="kpi" id="kpiFranja"></div>
-    <div class="kpi" id="kpiFamilia"></div>
+    <div class="kpi">
+      <h3>Ventas totales (€)</h3>
+      <p id="kpiVentas">0</p>
+    </div>
+    <div class="kpi">
+      <h3>Unidades vendidas</h3>
+      <p id="kpiUnidades">0</p>
+    </div>
+    <div class="kpi">
+      <h3>Ticket medio (€)</h3>
+      <p id="kpiTicket">0</p>
+    </div>
+    <div class="kpi">
+      <h3>Día con más ventas</h3>
+      <p id="kpiDia">-</p>
+    </div>
   </div>
 
-  <h2>Gráficos</h2>
-  <div class="chart-box"><canvas id="chartTop"></canvas></div>
-  <div class="chart-box"><canvas id="chartFranja"></canvas></div>
-  <div class="chart-box"><canvas id="chartFamilia"></canvas></div>
+  <!-- Gráficos -->
+  <section>
+    <h2>Top 5 productos por importe</h2>
+    <canvas id="chartTop"></canvas>
+  </section>
 
-  <h2>Datos RAW (10 primeras filas)</h2>
-  <table id="tablaRaw"></table>
+  <section>
+    <h2>Ventas por franja</h2>
+    <canvas id="chartFranja"></canvas>
+  </section>
 
-  <h2>Datos Limpios (10 primeras filas)</h2>
-  <table id="tablaClean"></table>
+  <section>
+    <h2>Ventas por familia</h2>
+    <canvas id="chartFamilia"></canvas>
+  </section>
 
-  <button onclick="descargarCSV()">Descargar ventas_clean.csv</button>
+  <!-- Ranking productos -->
+  <section>
+    <h2>Ranking de productos (mejor a peor)</h2>
+    <ul id="rankingProductos"></ul>
+  </section>
+
+  <!-- Tablas -->
+  <section>
+    <h2>Primeras 10 filas RAW</h2>
+    <div class="scroll">
+      <table id="tablaRaw"></table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Primeras 10 filas LIMPIAS</h2>
+    <div class="scroll">
+      <table id="tablaClean"></table>
+    </div>
+  </section>
+
 </main>
 
 <footer>
-  Proyecto BI Educativo · GitHub Pages
+  Dashboard BI educativo · Sin backend · GitHub Pages
 </footer>
 
-<!-- IMPORTANTE: defer -->
-<script src="app.js" defer></script>
-
+<script src="app.js"></script>
 </body>
 </html>
 
