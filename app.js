@@ -167,4 +167,49 @@ function descargarCSV() {
   a.href = URL.createObjectURL(blob);
   a.download = 'ventas_clean.csv';
   a.click();
+}function crearGraficos() {
+
+  // TOP 5 PRODUCTOS
+  const ctxTop = document.getElementById('chartTopProductos');
+  if (ctxTop) {
+    new Chart(ctxTop, {
+      type: 'bar',
+      data: {
+        labels: topProductos.map(p => p.producto),
+        datasets: [{
+          label: 'Ventas (€)',
+          data: topProductos.map(p => p.importe),
+        }]
+      }
+    });
+  }
+
+  // VENTAS POR FRANJA
+  const ctxFranja = document.getElementById('chartFranja');
+  if (ctxFranja) {
+    new Chart(ctxFranja, {
+      type: 'pie',
+      data: {
+        labels: Object.keys(ventasPorFranja),
+        datasets: [{
+          data: Object.values(ventasPorFranja),
+        }]
+      }
+    });
+  }
+
+  // VENTAS POR FAMILIA
+  const ctxFamilia = document.getElementById('chartFamilia');
+  if (ctxFamilia) {
+    new Chart(ctxFamilia, {
+      type: 'pie',
+      data: {
+        labels: Object.keys(ventasPorFamilia),
+        datasets: [{
+          data: Object.values(ventasPorFamilia),
+        }]
+      }
+    });
+  }
 }
+
