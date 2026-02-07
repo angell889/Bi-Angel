@@ -1,193 +1,170 @@
-document.addEventListener("DOMContentLoaded", () => {
-  fetch("./ventas_raw.csv")
-    .then(res => {
-      if (!res.ok) throw new Error("No se pudo cargar el CSV");
-      return res.text();
-    })
-    .then(csv => iniciar(csv))
-    .catch(err => {
-      document.body.innerHTML =
-        "<h2 style='padding:20px;color:red'>Error cargando datos</h2><p>" +
-        err.message +
-        "</p>";
-    });
-});
+let rawData = [];
+let cleanData = [];
 
-function iniciar(csv) {
-  const lineas = csv.trim().split("\n");
-  if (lineas.length < 2) return;
+// Cargar CSV
+fetch('ventas_raw.csv')
+  .then(res => res.text())
+  .then(text => procesarCSV(text));
 
-  const cabecera = lineas[0].split(",").map(c => c.trim());
+function procesarCSV(texto) {
+  const filas = texto.trim().split('\n');
+  const headers = filas[0].split(',');
 
-  const raw = lineas.slice(1).map(l => {
-    const valores = l.split(",");
+  rawData = filas.slice(1).map(f => {
+    const valores = f.split(',');
     let obj = {};
-    cabecera.forEach((c, i) => obj[c] = valores[i]?.trim() || "");
+    headers.forEach((h, i) => obj[h.trim()] = valores[i]?.trim());
     return obj;
   });
 
-  const clean = limpiar(raw);
-
-  pintarTabla("tablaRaw", raw.slice(0, 10));
-  pintarTabla("tablaClean", clean.slice(0, 10));
-
-  calcularKPIs(clean);
-  crearGraficos(clean);
-  rankingProductos(clean);
+  limpiarDatos();
+  mostrarTablas();
+  calcularKPIs();
+  crearGraficos();
+  crearRanking();
 }
 
-/* ---------------- LIMPIEZA ---------------- */
+// Limpieza
+function limpiarDatos() {
+  const vistos = new Set();
 
-function limpiar(data) {
-  const set = new Set();
-
-  return data.filter(d => {
-    const fecha = new Date(d.fecha);
+  cleanData = rawData.filter(r => {
+    const fecha = new Date(r.fecha);
     if (isNaN(fecha)) return false;
-    d.fechaObj = fecha;
 
-    d.producto = d.producto.toLowerCase().trim();
-    if (!d.producto) return false;
+    r.franja = r.franja.toLowerCase().includes('desa') ? 'Desayuno' : 'Comida';
 
-    d.unidades = Number(d.unidades);
-    d.precio_unitario = Number(d.precio_unitario);
-    if (d.unidades <= 0 || d.precio_unitario <= 0) return false;
+    const familiasValidas = ['bebida','entrante','principal','postre'];
+    if (!familiasValidas.includes(r.familia.toLowerCase())) return false;
+    r.familia = r.familia.charAt(0).toUpperCase() + r.familia.slice(1).toLowerCase();
 
-    d.importe = d.unidades * d.precio_unitario;
+    if (!r.producto) return false;
+    r.producto = r.producto.trim().toLowerCase();
 
-    d.franja = d.franja.toLowerCase().includes("desa")
-      ? "Desayuno"
-      : "Comida";
+    r.unidades = Number(r.unidades);
+    r.precio_unitario = Number(r.precio_unitario);
+    if (r.unidades <= 0 || r.precio_unitario <= 0) return false;
 
-    const fam = d.familia.toLowerCase();
-    if (fam.includes("beb")) d.familia = "Bebida";
-    else if (fam.includes("entra")) d.familia = "Entrante";
-    else if (fam.includes("post")) d.familia = "Postre";
-    else d.familia = "Principal";
+    r.importe = r.unidades * r.precio_unitario;
 
-    const key = JSON.stringify(d);
-    if (set.has(key)) return false;
-    set.add(key);
+    const clave = JSON.stringify(r);
+    if (vistos.has(clave)) return false;
+    vistos.add(clave);
 
+    r.fechaObj = fecha;
     return true;
   });
 }
 
-/* ---------------- KPIs ---------------- */
+// KPIs
+function calcularKPIs() {
+  const ventas = cleanData.reduce((a,b) => a + b.importe, 0);
+  const unidades = cleanData.reduce((a,b) => a + b.unidades, 0);
 
-function calcularKPIs(data) {
-  let ventas = 0;
-  let unidades = 0;
-  let ventasPorDia = {};
+  document.getElementById('kpiVentas').innerText = ventas.toFixed(2) + ' €';
+  document.getElementById('kpiUnidades').innerText = unidades;
 
-  data.forEach(d => {
-    ventas += d.importe;
-    unidades += d.unidades;
+  const porDia = {};
+  const porFranja = {};
 
-    const dia = d.fechaObj.toLocaleDateString("es-ES", { weekday: "long" });
-    ventasPorDia[dia] = (ventasPorDia[dia] || 0) + d.importe;
+  cleanData.forEach(r => {
+    const dia = r.fechaObj.toLocaleDateString('es-ES',{weekday:'long'});
+    porDia[dia] = (porDia[dia] || 0) + r.importe;
+    porFranja[r.franja] = (porFranja[r.franja] || 0) + r.importe;
   });
 
-  const mejorDia = Object.entries(ventasPorDia)
-    .sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
+  document.getElementById('kpiDia').innerText =
+    Object.entries(porDia).sort((a,b)=>b[1]-a[1])[0]?.[0] || '-';
 
-  document.getElementById("kpiVentas").textContent = ventas.toFixed(2);
-  document.getElementById("kpiUnidades").textContent = unidades;
-  document.getElementById("kpiTicket").textContent =
-    (ventas / data.length).toFixed(2);
-  document.getElementById("kpiDia").textContent = mejorDia;
+  document.getElementById('kpiFranja').innerText =
+    Object.entries(porFranja).sort((a,b)=>b[1]-a[1])[0]?.[0] || '-';
 }
 
-/* ---------------- GRÁFICOS ---------------- */
+// Gráficos
+function crearGraficos() {
+  const porProducto = {};
+  const porFranja = {};
+  const porFamilia = {};
 
-function crearGraficos(data) {
-  const porProducto = agrupar(data, "producto");
-  const top = Object.entries(porProducto).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  cleanData.forEach(r => {
+    porProducto[r.producto] = (porProducto[r.producto] || 0) + r.importe;
+    porFranja[r.franja] = (porFranja[r.franja] || 0) + r.importe;
+    porFamilia[r.familia] = (porFamilia[r.familia] || 0) + r.importe;
+  });
 
-  new Chart(document.getElementById("chartTop"), {
-    type: "bar",
+  const topProductos = Object.entries(porProducto)
+    .sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  new Chart(document.getElementById('chartTopProductos'), {
+    type: 'bar',
     data: {
-      labels: top.map(t => t[0]),
-      datasets: [{
-        data: top.map(t => t[1]),
-        backgroundColor: "#1f6f54"
-      }]
+      labels: topProductos.map(p=>p[0]),
+      datasets: [{ data: topProductos.map(p=>p[1]), backgroundColor:'#4FA3A5' }]
     }
   });
 
-  const porFranja = agrupar(data, "franja");
-  new Chart(document.getElementById("chartFranja"), {
-    type: "pie",
+  new Chart(document.getElementById('chartFranja'), {
+    type: 'pie',
     data: {
       labels: Object.keys(porFranja),
-      datasets: [{
-        data: Object.values(porFranja)
-      }]
+      datasets: [{ data: Object.values(porFranja), backgroundColor:['#0A4D68','#4FA3A5'] }]
     }
   });
 
-  const porFamilia = agrupar(data, "familia");
-  new Chart(document.getElementById("chartFamilia"), {
-    type: "bar",
+  new Chart(document.getElementById('chartFamilia'), {
+    type: 'bar',
     data: {
       labels: Object.keys(porFamilia),
-      datasets: [{
-        data: Object.values(porFamilia),
-        backgroundColor: "#e76f51"
-      }]
+      datasets: [{ data: Object.values(porFamilia), backgroundColor:'#F4B942' }]
     }
   });
 }
 
-function agrupar(data, campo) {
-  let obj = {};
-  data.forEach(d => obj[d[campo]] = (obj[d[campo]] || 0) + d.importe);
-  return obj;
-}
-
-/* ---------------- RANKING ---------------- */
-
-function rankingProductos(data) {
-  const porProducto = agrupar(data, "producto");
-  const lista = Object.entries(porProducto).sort((a,b)=>b[1]-a[1]);
-
-  const ul = document.getElementById("rankingProductos");
-  ul.innerHTML = "";
-
-  lista.forEach(p => {
-    const li = document.createElement("li");
-    li.textContent = `${p[0]} → ${p[1].toFixed(2)} €`;
-    ul.appendChild(li);
+// Ranking
+function crearRanking() {
+  const porProducto = {};
+  cleanData.forEach(r=>{
+    porProducto[r.producto]=(porProducto[r.producto]||0)+r.importe;
   });
-}
 
-/* ---------------- TABLAS ---------------- */
+  const tabla = document.getElementById('tablaRanking');
+  tabla.innerHTML = '<tr><th>Producto</th><th>Ventas (€)</th></tr>';
 
-function pintarTabla(id, data) {
-  const table = document.getElementById(id);
-  table.innerHTML = "";
-
-  if (!data.length) return;
-
-  const trHead = document.createElement("tr");
-  Object.keys(data[0]).forEach(k => {
-    if (k !== "fechaObj") {
-      const th = document.createElement("th");
-      th.textContent = k;
-      trHead.appendChild(th);
-    }
-  });
-  table.appendChild(trHead);
-
-  data.forEach(d => {
-    const tr = document.createElement("tr");
-    Object.keys(d).forEach(k => {
-      if (k !== "fechaObj") {
-        const td = document.createElement("td");
-        td.textContent = d[k];
-        tr.appendChild(td);
-      }
+  Object.entries(porProducto)
+    .sort((a,b)=>b[1]-a[1])
+    .forEach(p=>{
+      tabla.innerHTML += `<tr><td>${p[0]}</td><td>${p[1].toFixed(2)}</td></tr>`;
     });
-    table.appendChild(tr);
+}
+
+// Tablas
+function mostrarTablas() {
+  crearTabla('tablaRaw', rawData.slice(0,10));
+  crearTabla('tablaClean', cleanData.slice(0,10));
+}
+
+function crearTabla(id, datos) {
+  const tabla = document.getElementById(id);
+  if (!datos.length) return;
+
+  tabla.innerHTML = '<tr>' + Object.keys(datos[0]).map(h=>`<th>${h}</th>`).join('') + '</tr>';
+  datos.forEach(d=>{
+    tabla.innerHTML += '<tr>' + Object.values(d).map(v=>`<td>${v}</td>`).join('') + '</tr>';
   });
+}
+
+// Descargar CSV limpio
+function descargarCSV() {
+  const headers = Object.keys(cleanData[0]).filter(h=>h!=='fechaObj');
+  let csv = headers.join(',') + '\n';
+
+  cleanData.forEach(r=>{
+    csv += headers.map(h=>r[h]).join(',') + '\n';
+  });
+
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ventas_clean.csv';
+  a.click();
 }
