@@ -1,9 +1,7 @@
 fecha,franja,producto,familia,unidades,precio_unitario,importe
 2025-10-01,Desayuno,Café solo,Bebida,12,1.2,14.4
-2025-10-01,Desayuno,cafe Solo,bebida,10,1.2,15
 2025-10-01,Comida,Agua mineral,Bebida,20,1,20
 2025-10-02,Desayuno,Zumo naranja,Bebida,8,1.5,12
-2025-10-02,Desayuno,Zumo Naranja,Bebidas,0,1.5,0
 2025-10-02,Comida,Ensalada mixta,Entrante,6,3.5,21
 2025-10-03,Comida,Pasta boloñesa,Principal,10,6,60
 2025-10-03,Comida,pasta boloÃ±esa,Principal,10,6,55
@@ -44,4 +42,5 @@ fecha,franja,producto,familia,unidades,precio_unitario,importe
 2025-11-12,Comida,Yogur natural,Postre,8,1.5,12
 2025-11-15,Desayuno,Tostada mantequilla,Entrante,13,2,26
 2025-12-01,Comida,Garbanzos,Principal,10,4.5,45
+
 2025-12-03,Comida,Filete ternera,Principal,7,7.5,52.5
