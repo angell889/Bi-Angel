@@ -1,3 +1,7 @@
+document.body.insertAdjacentHTML(
+  "beforeend",
+  "<p style='color:green;text-align:center'>✔ app.js cargado correctamente</p>"
+
 let rawData = [];
 let cleanData = [];
 
