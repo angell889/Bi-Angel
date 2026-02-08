@@ -207,9 +207,49 @@ function descargarCSV() {
         labels: Object.keys(ventasPorFamilia),
         datasets: [{
           data: Object.values(ventasPorFamilia),
-        }]
-      }
+        
+    // =====================
+// Cargar CSV y dibujar gráfico
+// =====================
+
+fetch('https://raw.githubusercontent.com/angell889/Bi-Angel/main/ventas_raw.csv')
+  .then(response => response.text())
+  .then(data => {
+    // Parsear CSV a array de objetos
+    const filas = data.trim().split('\n');
+    const headers = filas[0].split(',');
+    const registros = filas.slice(1).map(fila => {
+      const valores = fila.split(',');
+      let obj = {};
+      headers.forEach((h, i) => {
+        obj[h] = valores[i];
+      });
+      return obj;
     });
-  }
-}
+
+    console.log('Datos cargados:', registros); // para verificar
+
+    // =====================
+    // Ejemplo gráfico de barras con Plotly
+    // =====================
+    const trace = {
+      x: registros.map(r => r.fecha),           // eje X: fechas
+      y: registros.map(r => parseFloat(r.importe)), // eje Y: importes
+      type: 'bar',
+      marker: { color: '#4CAF50' }
+    };
+
+    const layout = {
+      title: 'Importe por fecha',
+      xaxis: { title: 'Fecha' },
+      yaxis: { title: 'Importe' }
+    };
+
+    Plotly.newPlot('grafico-importes', [trace], layout);
+  })
+  .catch(error => {
+    console.error('Error cargando CSV:', error);
+  });
+
+  
 
